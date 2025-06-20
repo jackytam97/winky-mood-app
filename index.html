@@ -26,10 +26,10 @@
     </div>
 
     <!-- 音效元素 -->
-    <audio id="rain-audio" src="/audio/rainstorm.mp3" preload="auto" loop></audio>
-    <audio id="volcano-audio" src="/audio/volcano.mp3" preload="auto"></audio>
-    <audio id="thunder-audio" src="/audio/thunder.mp3" preload="auto"></audio>
-    <audio id="fire-audio" src="/audio/fire.mp3" preload="auto" loop></audio>
+    <audio id="rain-audio" src="audio/rainstorm.mp3" preload="auto" loop></audio>
+    <audio id="volcano-audio" src="audio/volcano.mp3" preload="auto"></audio>
+    <audio id="thunder-audio" src="audio/thunder.mp3" preload="auto"></audio>
+    <audio id="fire-audio" src="audio/fire.mp3" preload="auto" loop></audio>
 
     <main class="relative z-10 flex items-center justify-center min-h-screen font-sans">
         <div class="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm rounded-lg shadow-lg p-6 md:p-8 w-full max-w-md mx-4">
@@ -156,7 +156,7 @@
                 loadingSpinner.classList.remove('hidden');
                 moodImageElement.style.display = 'none';
 
-                const imageUrl = `/images/${mood}.png`;
+                const imageUrl = `images/${mood}.png`;
                 moodImageElement.src = imageUrl;
                 moodImageElement.onerror = () => {
                     moodImageElement.src = `https://placehold.co/300x300/E2E8F0/4A5568?text=${mood}`;
