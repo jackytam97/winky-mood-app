@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Winky 心情指數</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 特效的 CSS 樣式保持不變 */
+        #special-effects-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; overflow: hidden; display: none; }
+        #lightning-flash { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; opacity: 0; z-index: 100; }
+        .raindrop { position: absolute; bottom: 100%; width: 2px; height: 80px; background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.4)); animation: fall 1s linear infinite; }
+        @keyframes fall { to { transform: translateY(100vh); } }
+        #volcano { position: absolute; bottom: -50px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 100px solid transparent; border-right: 100px solid transparent; border-bottom: 200px solid #4d423c; display: none; }
+        #volcano.erupting { animation: shake 0.5s infinite; }
+        @keyframes shake { 0%, 100% { transform: translateX(-51%); } 50% { transform: translateX(-49%); } }
+        .particle { position: absolute; border-radius: 50%; }
+        .ember { position: absolute; bottom: -20px; border-radius: 50%; background-color: #ffcc00; box-shadow: 0 0 10px 5px #ff8800, 0 0 20px 10px #ff4400; animation: rise 5s linear infinite; }
+        @keyframes rise { to { transform: translateY(-100vh); opacity: 0; } }
+    </style>
+</head>
+<body class="bg-white transition-colors duration-1000">
+    <!-- 特效容器 -->
+    <div id="special-effects-container">
+        <div id="lightning-flash"></div><div id="rain-container"></div><div id="volcano"></div><div id="eruption-container"></div><div id="fire-container"></div>
+    </div>
+
+    <!-- 音效元素 -->
+    <audio id="rain-audio" src="/audio/rainstorm.mp3" preload="auto" loop></audio>
+    <audio id="volcano-audio" src="/audio/volcano.mp3" preload="auto"></audio>
+    <audio id="thunder-audio" src="/audio/thunder.mp3" preload="auto"></audio>
+    <audio id="fire-audio" src="/audio/fire.mp3" preload="auto" loop></audio>
+
+    <main class="relative z-10 flex items-center justify-center min-h-screen font-sans">
+        <div class="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm rounded-lg shadow-lg p-6 md:p-8 w-full max-w-md mx-4">
+            <div class="text-center">
+                <h1 class="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white">Winky 心情指數</h1>
+                <p id="current-date" class="text-gray-600 dark:text-gray-400 mt-2"></p>
+                <p id="current-time" class="text-gray-800 dark:text-white text-3xl font-mono mt-2"></p>
+            </div>
+
+            <div class="mt-6 text-center">
+                <div id="mood-image-container" class="relative w-48 h-48 md:w-64 md:h-64 mx-auto bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center overflow-hidden shadow-inner">
+                    <img id="mood-image" src="" alt="心情圖片" class="w-full h-full">
+                    <div id="loading-spinner" class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+                </div>
+                <p id="mood-level" class="mt-4 text-4xl md:text-5xl font-extrabold text-blue-600 dark:text-blue-400 tracking-wider"></p>
+            </div>
+            
+            <div class="mt-6 flex flex-col items-center space-y-4">
+                <!-- 朗讀按鈕 -->
+                <button id="read-aloud-btn" class="w-full md:w-auto bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full inline-flex items-center justify-center transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                    <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.858 15.858a5 5 0 01-2.828-7.072m11.314 0a5 5 0 00-8.486 0M12 12h.01"></path></svg>
+                    <span>用廣東話讀出</span>
+                </button>
+                <!-- 新增的「轉換心情」按鈕 -->
+                <button id="change-mood-btn" class="w-full md:w-auto bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full inline-flex items-center justify-center transition duration-300 ease-in-out transform hover:scale-105">
+                    <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M4 20h5v-5M20 4h-5v5"></path></svg>
+                    <span>轉換一下心情</span>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- 全局變數和常數 ---
+            const MOOD_LEVELS = Array.from({ length: 26 }, (_, i) => `${String.fromCharCode(65 + i)}inky`);
+            let currentMood = 'Winky'; // 初始心情
+            let ainkyInterval, binkyInterval; // 特效計時器
+
+            // --- DOM 元素 ---
+            const moodLevelElement = document.getElementById('mood-level');
+            const moodImageElement = document.getElementById('mood-image');
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const readAloudBtn = document.getElementById('read-aloud-btn');
+            const changeMoodBtn = document.getElementById('change-mood-btn');
+            const body = document.body;
+            
+            // --- 特效元素 ---
+            const effectsContainer = document.getElementById('special-effects-container');
+            const lightningFlash = document.getElementById('lightning-flash');
+            const rainContainer = document.getElementById('rain-container');
+            const volcanoElement = document.getElementById('volcano');
+            const eruptionContainer = document.getElementById('eruption-container');
+            const fireContainer = document.getElementById('fire-container');
+
+            // --- 音效元素 ---
+            const allAudios = {
+                rain: document.getElementById('rain-audio'),
+                volcano: document.getElementById('volcano-audio'),
+                thunder: document.getElementById('thunder-audio'),
+                fire: document.getElementById('fire-audio')
+            };
+
+            // --- 事件監聽器 ---
+            changeMoodBtn.addEventListener('click', handleChangeMood);
+            readAloudBtn.addEventListener('click', handleReadAloud);
+
+            // --- 初始化 ---
+            // 日期和時鐘
+            document.getElementById('current-date').textContent = new Date().toLocaleDateString('zh-Hant', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+            function updateClock() { document.getElementById('current-time').textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
+            updateClock();
+            setInterval(updateClock, 1000);
+            // 初始化UI
+            updateUIForMood(currentMood);
+
+
+            // --- 核心功能函數 ---
+
+            function handleChangeMood() {
+                // 1. 重置所有正在進行的特效
+                resetAllEffects();
+                
+                // 2. 隨機選擇一個新心情
+                const randomIndex = Math.floor(Math.random() * MOOD_LEVELS.length);
+                currentMood = MOOD_LEVELS[randomIndex];
+                
+                // 3. 更新整個UI
+                updateUIForMood(currentMood);
+            }
+
+            function handleReadAloud() {
+                if (!('speechSynthesis' in window)) return alert('抱歉，您的瀏覽器不支援語音朗讀功能。');
+                
+                resetAllEffects(); // 先重置，確保不會有舊特效干擾
+
+                const now = new Date();
+                const textToRead = `今日係${now.toLocaleDateString('zh-HK', { year: 'numeric', month: 'long', day: 'numeric' })}，而家時間係${now.toLocaleTimeString('zh-HK', { hour: 'numeric', minute: 'numeric' })}。Winky心情指數係 ${currentMood}`;
+                
+                const utterance = new SpeechSynthesisUtterance(textToRead);
+                utterance.lang = 'zh-HK';
+                utterance.rate = 0.9;
+
+                // 根據當前心情綁定特效
+                if (currentMood === 'Ainky') {
+                    utterance.onend = triggerAinkySequence;
+                } else if (currentMood === 'Binky') {
+                    utterance.onend = triggerBinkySequence;
+                }
+                
+                window.speechSynthesis.speak(utterance);
+            }
+
+            // --- 重構：更新UI的主函數 ---
+            function updateUIForMood(mood) {
+                // 更新文字
+                moodLevelElement.textContent = mood;
+                
+                // 更新視覺 (圖片和背景)
+                setupVisuals(mood);
+            }
+
+            function setupVisuals(mood) {
+                loadingSpinner.classList.remove('hidden');
+                moodImageElement.style.display = 'none';
+
+                const imageUrl = `/images/${mood}.png`;
+                moodImageElement.src = imageUrl;
+                moodImageElement.onerror = () => {
+                    moodImageElement.src = `https://placehold.co/300x300/E2E8F0/4A5568?text=${mood}`;
+                };
+                moodImageElement.onload = () => {
+                    loadingSpinner.classList.add('hidden');
+                    moodImageElement.style.display = 'block';
+                };
+
+                const moodIndex = MOOD_LEVELS.indexOf(mood);
+                body.style.transition = 'background-color 1s ease';
+                if (mood === 'Ainky') {
+                    body.style.backgroundColor = 'white';
+                } else if (moodIndex !== -1) {
+                    const hue = 240 - (moodIndex / 25) * 180;
+                    body.style.backgroundColor = `hsl(${hue}, 80%, 85%)`;
+                } else {
+                    body.style.backgroundColor = '#f0f8ff'; // Winky 或其他預設
+                }
+            }
+
+            // --- 特效重置函數 ---
+            function resetAllEffects() {
+                window.speechSynthesis.cancel();
+                resetAinkyEffects();
+                resetBinkyEffects();
+            }
+
+            // --- Binky 特效 ---
+            function triggerBinkySequence() { readAloudBtn.disabled = true; body.style.transition = 'background-color 2s'; body.style.backgroundColor = '#4d0000'; effectsContainer.style.display = 'block'; allAudios.fire.play(); binkyInterval = setInterval(createEmber, 100); setTimeout(resetBinkyEffects, 15000); }
+            function createEmber() { const ember = document.createElement('div'); ember.className = 'ember'; const size = Math.random() * 10 + 5; ember.style.width = `${size}px`; ember.style.height = `${size}px`; ember.style.left = `${Math.random() * 100}%`; const duration = Math.random() * 3 + 4; ember.style.animationDuration = `${duration}s`; ember.style.animationDelay = `${Math.random() * 2}s`; fireContainer.appendChild(ember); ember.addEventListener('animationend', () => { ember.remove(); }); }
+            function resetBinkyEffects() { if (!binkyInterval) return; clearInterval(binkyInterval); binkyInterval = null; fireContainer.innerHTML = ''; allAudios.fire.pause(); allAudios.fire.currentTime = 0; readAloudBtn.disabled = false; if (currentMood === 'Binky') { setupVisuals('Binky'); } effectsContainer.style.display = 'none'; }
+
+            // --- Ainky 特效 ---
+            function triggerAinkySequence() { readAloudBtn.disabled = true; body.style.transition = 'background-color 1s'; body.style.backgroundColor = 'black'; setTimeout(() => { effectsContainer.style.display = 'block'; createRain(150); allAudios.rain.play(); ainkyInterval = setInterval(triggerThunder, 5000); setTimeout(() => { volcanoElement.style.display = 'block'; volcanoElement.classList.add('erupting'); allAudios.volcano.play(); createVolcanoEruption(80); }, 6000); setTimeout(resetAinkyEffects, 20000); }, 1000); }
+            function triggerThunder() { if (Math.random() > 0.6) { lightningFlash.style.transition = 'opacity 0.1s ease-in'; lightningFlash.style.opacity = 1; allAudios.thunder.currentTime = 0; allAudios.thunder.play(); setTimeout(() => { lightningFlash.style.transition = 'opacity 0.5s ease-out'; lightningFlash.style.opacity = 0; }, 150); } }
+            function createRain(count) { rainContainer.innerHTML = ''; for (let i = 0; i < count; i++) { const drop = document.createElement('div'); drop.className = 'raindrop'; drop.style.left = `${Math.random() * 100}%`; drop.style.animationDelay = `${Math.random() * 2}s`; drop.style.animationDuration = `${0.5 + Math.random() * 0.5}s`; rainContainer.appendChild(drop); } }
+            function createVolcanoEruption(count) { const craterX = window.innerWidth / 2; for (let i = 0; i < count; i++) { const particle = document.createElement('div'); particle.className = 'particle'; const isLava = Math.random() > 0.4; const size = Math.random() * (isLava ? 15 : 10) + 5; particle.style.width = `${size}px`; particle.style.height = `${size}px`; particle.style.backgroundColor = isLava ? `hsl(${Math.random() * 30 + 10}, 100%, 50%)` : `hsl(25, 15%, ${Math.random() * 20 + 20}%)`; eruptionContainer.appendChild(particle); const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.8; const velocity = 500 + Math.random() * 500; const endX = Math.cos(angle) * velocity; const endY = Math.sin(angle) * velocity; const duration = 1500 + Math.random() * 1000; const animation = particle.animate([ { transform: `translate(0, 0) scale(1)`, opacity: 1 }, { transform: `translate(${endX}px, ${endY}px) scale(2)`, opacity: 1, offset: 0.5 }, { transform: `translate(${endX * 1.5}px, 300px) scale(1)`, opacity: 0 } ], { duration: duration, easing: 'cubic-bezier(0.3, 0.7, 0.6, 1)', delay: Math.random() * 500 }); particle.style.position = 'absolute'; particle.style.left = `${craterX}px`; particle.style.bottom = `150px`; animation.onfinish = () => particle.remove(); } }
+            function resetAinkyEffects() { if (!ainkyInterval) return; clearInterval(ainkyInterval); ainkyInterval = null; volcanoElement.style.display = 'none'; volcanoElement.classList.remove('erupting'); eruptionContainer.innerHTML = ''; allAudios.rain.pause(); allAudios.rain.currentTime = 0; readAloudBtn.disabled = false; if (currentMood === 'Ainky') { setupVisuals('Ainky'); } effectsContainer.style.display = 'none'; }
+        });
+    </script>
+</body>
+</html>
